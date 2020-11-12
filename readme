@@ -1,0 +1,10 @@
+usage: python info_retrieval_system.py [-h] -i INPUT -q QUERY -n NUMBER [-t TIME_LIMIT] [-f FIELD] [-c CLUSTERS]
+arguments:
+         -h                      show this help message and exit.
+         -i INPUT                of type string.the read-in directory of the dataset.
+         -q QUERY                of type string.the query to retrieve documents from the dataset.
+         -n NUMBER               of type int.the max number of results to be returned.
+         -t TIME_LIMIT           of type int. If given, the scheduler will be used to return the most relevant results which can be read within the time limit in minutes (200 words/min).
+         -f FIELD                of type int.If given, the query will be run on a specific field. [title, content, author] (default: content)
+         -c CLUSTERS             of type int. If given, the dataset will be grouped into the corresponding number of clusters.
+The information retrieval system works on the corpus in the defined structure (-i INPUT). It can search through documents by the query (-q QUERY). The top n results will be returned (-n NUMBER). It can search on title, content and author (-f FIELD). It can also schedule the reading based on the documents returned if a time limit is given (-t TIME_LIMIT). It can also group the documents automatically into a given number of clusters (-c CLUSTERS).
