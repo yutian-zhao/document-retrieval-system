@@ -1,8 +1,10 @@
-// #include <vector>
+#include <vector>
 #include "hash_table.hpp"
 #include <cmath>
 #include <iostream>
 #include <functional> 
+
+using namespace std;
 
 template <class K, class V>
 KVPair<K, V>::KVPair(K k, V v){
@@ -143,6 +145,33 @@ HashTable<K, V>::~HashTable() {
     delete [] table;
 }
 
+int bottom_up(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
+    for (int i = 1; i<= n; i++){
+        for (int j = 0; j<=w; j++){
+            if (j-t[i-1] >= 0 && (s[i-1]+kc[i-1][j-t[i-1]]>kc[i-1][j])){
+                kc[i][j] = s[i-1]+kc[i-1][j-t[i-1]];
+            } else{
+                kc[i][j] = kc[i-1][j];
+            }
+        }
+    }
+    return kc[n][w];
+}
+
+vector<int> extract(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
+    vector<int> docs;
+    while(w>=0 && n>=0 && kc[n][w] > 0){
+        if (kc[n][w] > kc[n-1][w]){
+            docs.push_back(n-1);
+            w = w-t[n-1];
+            n = n-1; 
+        } else {
+            n = n-1;
+        }
+    }
+    return docs;
+}
+
 int main(int argc, char *argv[]) {
     // HashTable<int, int> *ht = new HashTable<int, int>();
 
@@ -155,13 +184,29 @@ int main(int argc, char *argv[]) {
     // }
     // delete ht;
 
-    KVPair<int, int> **h = new KVPair<int, int> *[5]();
-    for (int i = 1; i<6; i++){
-        h[i-1] = new KVPair<int, int>(i, i);
+    // KVPair<int, int> **h = new KVPair<int, int> *[5]();
+    // for (int i = 1; i<6; i++){
+    //     h[i-1] = new KVPair<int, int>(i, i);
+    // }
+    // Heap<int, int> *hp =  new Heap<int, int>(h, 5);
+    // for (int i = 1; i<4; i++){
+    //     std::cout << hp->extractMax() << std::endl;
+    // }
+    // delete hp;
+
+    vector<int> t = {77, 22, 29, 50, 99};
+    vector<float> s = {92, 22, 87, 46, 90};
+    int w = 100; 
+    int n = 5;
+    vector<vector<float>> kc(n+1, vector<float>(w+1));
+    for (int j=0; j<= w; j++){
+        kc[0][j] = 0; 
     }
-    Heap<int, int> *hp =  new Heap<int, int>(h, 5);
-    for (int i = 1; i<4; i++){
-        std::cout << hp->extractMax() << std::endl;
+
+    int sum = bottom_up(w, n, kc, t, s);
+    cout << "sum: " << sum << endl;
+    vector<int> results = extract(w, n, kc, t, s);
+    for (int i=0; i<results.size(); i++){
+        cout << results[i] << endl;
     }
-    delete hp;
 }
