@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sstream>
+#include <cmath>
 
 using namespace std;
 
@@ -53,6 +55,33 @@ vector<string> schedule (vector<int> results, int time_limit, HashTable<int, str
  * @return a vector of clusters (vector of doc id)
  */
 vector<vector<int>> clustering (HashTable<int, HashTable<std::string, int>> doc_to_token_counts, int numClusters);
+
+int bottom_up(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
+    for (int i = 1; i<= n; i++){
+        for (int j = 0; j<=w; j++){
+            if (j-t[i-1] >= 0 && (s[i-1]+kc[i-1][j-t[i-1]]>kc[i-1][j])){
+                kc[i][j] = s[i-1]+kc[i-1][j-t[i-1]];
+            } else{
+                kc[i][j] = kc[i-1][j];
+            }
+        }
+    }
+    return kc[n][w];
+}
+
+vector<int> extract(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
+    vector<int> docs;
+    while(w>=0 && n>=0 && kc[n][w] > 0){
+        if (kc[n][w] > kc[n-1][w]){
+            docs.push_back(n-1);
+            w = w-t[n-1];
+            n = n-1; 
+        } else {
+            n = n-1;
+        }
+    }
+    return docs;
+}
 
 int main(int argc, char *argv[]) {
     int opt;
@@ -164,10 +193,102 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        cout << "doc num: " << ids.size() << " id: " << ids[0] << endl;
-        cout << "len num: " << lens.size() << " len: " << lens[0] << endl;
-        cout << "first doc has fetal: " << *((*(doc_to_token_counts->get(1)))->get("fetal")) <<endl;
-        cout << "fetal has in doc freq: " << *((*(token_to_doc_counts->get("fetal")))->get(1)) <<endl;
+        // cout << "doc num: " << ids.size() << " id: " << ids[0] << endl;
+        // cout << "len num: " << lens.size() << " len: " << lens[0] << endl;
+        // cout << "first doc has fetal: " << *((*(doc_to_token_counts->get(1)))->get("fetal")) <<endl;
+        // cout << "fetal has in doc freq: " << *((*(token_to_doc_counts->get("fetal")))->get(1)) <<endl;
+
+        HashTable<string, int>* query_terms = new HashTable<string, int>(50);
+        vector<string> tokens;
+        istringstream iss(query);
+        // string token;
+        while(iss >> token) {
+            int* p_query_term_freq = query_terms->get(token);
+            if (p_query_term_freq == NULL){
+                query_terms->insert(token, 1);
+            } else{
+                *p_query_term_freq = *p_query_term_freq + 1;
+            }
+            tokens.push_back(token);
+        }
+        cout << "query count: " << query_terms->numElements << endl;
+
+        cout << "start searching..." << endl;
+        // HashTable<int, float>* doc_score = new HashTable<int, float>();
+        vector<int> scores_vec(ids.size(), 0); 
+        KVPair<float, int> **scores = new KVPair<float, int> *[ids.size()]();
+        for (int i = 0; i<ids.size(); i++){
+            scores[i] = new KVPair<float, int>(0, i); //index
+        }
+        int sum_lens = 0;
+        for (int i=0; i<lens.size();i++){
+            sum_lens = sum_lens + lens[i];
+        }
+        float avgdl = sum_lens/lens.size();
+        int k = 2;
+        int b = 0.75;
+
+        for (int i=0; i<tokens.size();i++){
+            int nq = (*(token_to_doc_counts->get(tokens[i])))->numElements;
+            float idfq = log(((lens.size()-nq+0.5)/(nq+0.5))+1);
+            for (int j=0; j<ids.size(); j++){
+                int* tf = (*(token_to_doc_counts->get(tokens[i])))->get(ids[j]);
+                if (tf != NULL){
+                    float temp = idfq * (((*tf)*(k+1))/((*tf)+k*(1-b+b*((*(doc_to_token_counts->get(ids[j])))->numElements)/avgdl)));
+                    if (temp < 0){
+                        temp = 0;
+                    }
+                    scores[j]->key = scores[j]->key + temp;
+                    // float* p_score = doc_score->get(ids[j]);
+                    // if (p_score == NULL){
+                    //     doc_score->insert(ids[j], temp);
+                    // } else {
+                    //     *p_score = *p_score + temp;
+                    // }
+
+                    scores_vec[j] = scores_vec[j] + temp;
+
+                }
+            }
+        }
+
+        Heap<float, int> *score_heap =  new Heap<float, int>(scores, ids.size());
+        vector<int> top_k;
+        cout << "Searching result: " << endl;
+        for (int i=0; i<number; i++){
+            top_k.push_back(score_heap->extractMax());
+            cout << i+1 << ". " << ids[top_k[i]] << endl;
+        }
+
+        // schedule
+        if (time_limit > 0){
+            vector<int> times;
+            vector<float> values;
+            for (int i=0; i<top_k.size();i++){
+                times.push_back(std::ceil(lens[top_k[i]]/3));
+                values.push_back(scores_vec[top_k[i]]);
+            }
+            vector<vector<float>> kc(number+1, vector<float>(time_limit+1));
+            for (int j=0; j<= time_limit; j++){
+                kc[0][j] = 0; 
+            }
+
+            int sum = bottom_up(time_limit, number, kc, times, values);
+            cout << "maximum value you can read within time limit: "<< time_limit << "s is: " << sum << endl;
+            vector<int> results = extract(time_limit, number, kc, times, values);
+            cout << "reading list:";
+            for (int i=0; i<results.size(); i++){
+                cout << " " << ids[top_k[results[i]]];
+            }
+            cout << endl;
+        }
+
+
+
+        
+
+        delete doc_to_token_counts;
+        delete token_to_doc_counts;
 
         std::exit(EXIT_SUCCESS);
         
