@@ -12,6 +12,59 @@ KVPair<K, V>::KVPair(K k, V v){
 }
 
 template <class K, class V>
+void Heap<K, V>::heapify(int i){
+    int l = i*2+1;
+    int r = i*2+2;
+    int largest = i;
+    if (l < heapSize && heap[l]->key > heap[i]->key){
+        largest = l;
+    }
+    if (r < heapSize && heap[r]->key > heap[largest]->key){
+        largest = r;
+    }
+    if (largest != i){
+         KVPair<K, V> *p = heap[largest];
+         heap[largest] = heap[i];
+         heap[i] = p;
+         heapify(largest);
+    }
+}
+
+template <class K, class V>
+Heap<K, V>::Heap(KVPair<K, V> **p, int hs){
+    heap = p;
+    heapSize = hs;
+    for (int i = std::floor(heapSize/2); i>=0; i--){
+        heapify(i);
+    }
+}
+
+template <class K, class V>
+V Heap<K, V>::extractMax(){
+    if (heapSize <= 0){
+        throw "Empty Heap!";
+    }
+    V max = heap[0]->value;
+    // std::cout << "the end: " << heap[heapSize-1]->value << std::endl;
+    delete heap[0];  // 
+    heap[0] = heap[heapSize-1];
+    heap[heapSize-1] = NULL;
+    heapSize = heapSize-1;
+    heapify(0);
+    // std::cout << "new begin: " << heap[0]->value << std::endl;
+    return max;
+}
+
+template <class K, class V>
+Heap<K, V>::~Heap(){
+    for (int i = 0; i < heapSize; i++){
+        delete heap[i];
+        heap[i] = NULL;
+    }
+    delete [] heap; // 
+}
+
+template <class K, class V>
 HashTable<K, V>::HashTable(){
     numBuckets = 2083;
     numElements = 0;
@@ -91,14 +144,24 @@ HashTable<K, V>::~HashTable() {
 }
 
 int main(int argc, char *argv[]) {
-    HashTable<int, int> *ht = new HashTable<int, int>();
+    // HashTable<int, int> *ht = new HashTable<int, int>();
 
+    // for (int i = 1; i<6; i++){
+    //     ht->insert(i,i);
+    // }
+    // std::cout << "num: " << ht->numElements <<std::endl;
+    // for (int i = 1; i<6; i++){
+    //     std::cout << *(ht->get(i)) << std::endl;
+    // }
+    // delete ht;
+
+    KVPair<int, int> **h = new KVPair<int, int> *[5]();
     for (int i = 1; i<6; i++){
-        ht->insert(i,i);
+        h[i-1] = new KVPair<int, int>(i, i);
     }
-    std::cout << "num: " << ht->numElements <<std::endl;
-    for (int i = 1; i<6; i++){
-        std::cout << *(ht->get(i)) << std::endl;
+    Heap<int, int> *hp =  new Heap<int, int>(h, 5);
+    for (int i = 1; i<4; i++){
+        std::cout << hp->extractMax() << std::endl;
     }
-    delete ht;
+    delete hp;
 }

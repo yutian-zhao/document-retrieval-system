@@ -20,15 +20,26 @@ public:
 };
 
 template <class K, class V>
+class Heap{
+public:
+    int heapSize;
+    KVPair<K, V> **heap;
+    void heapify(int i);
+    Heap(KVPair<K, V> **p, int hs);
+    V extractMax();
+    ~Heap();
+    // build()
+};
+
+template <class K, class V>
 class HashTable{
 // private:
     
-
 public:
     int numBuckets, numElements;
     KVPair<K, V> **table; // *table[] won't work
     HashTable();
-    HashTable(int numBuckets);
+    HashTable(int nb);
 
     /**
      * Compute the hash on the key.
