@@ -1,10 +1,8 @@
+#include "heap_hash_dp.hpp"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
-#include "hash_table.hpp"
-#include "data_loader.hpp"
-// #include "info_retrieval_system.hpp"
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -13,77 +11,9 @@
 
 using namespace std;
 
-// DataLoader dataset;
-// HashTable<int, int> doc_to_score;
-vector<int> results;
-vector<vector<int>> clusters;
-
-/**
- * Retrieve relevant documents based on the query and field, and assign each document a score.
- *
- * @param doc_to_token_counts
- * @param query
- * @param field
- * @return hash table <id, score>
- */
-HashTable<int, int> retrieve (HashTable<int, HashTable<std::string, int>> doc_to_token_counts, HashTable<std::string, int> query, string field);
-
-/**
- * Retrieve relevant documents based on the query and field, and assign each document a score.
- *
- * @param doc_to_score
- * @param num the number of document wanted
- * @return a vector of doc id
- */
-vector<int> getResult (HashTable<int, int> doc_to_score, int num);
-
-/**
- * schedule the reading list based on the documents returned in a given time limit
- *
- * @param results from getResult
- * @param time limit
- * @param docs
- * @return a vector of doc title
- */
-vector<string> schedule (vector<int> results, int time_limit, HashTable<int, struct doc> docs);
-
-/**
- * Cluster the documents into a given number of clusters based on the similarity.
- *
- * @param doc_to_token_counts
- * @param numClusters
- * @return a vector of clusters (vector of doc id)
- */
-vector<vector<int>> clustering (HashTable<int, HashTable<std::string, int>> doc_to_token_counts, int numClusters);
-
-int bottom_up(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
-    for (int i = 1; i<= n; i++){
-        for (int j = 0; j<=w; j++){
-            if (j-t[i-1] >= 0 && (s[i-1]+kc[i-1][j-t[i-1]]>kc[i-1][j])){
-                kc[i][j] = s[i-1]+kc[i-1][j-t[i-1]];
-            } else{
-                kc[i][j] = kc[i-1][j];
-            }
-        }
-    }
-    return kc[n][w];
-}
-
-vector<int> extract(int w, int n, vector<vector<float>> &kc, vector<int> &t, vector<float> &s){
-    vector<int> docs;
-    while(w>=0 && n>=0 && kc[n][w] > 0){
-        if (kc[n][w] > kc[n-1][w]){
-            docs.push_back(n-1);
-            w = w-t[n-1];
-            n = n-1; 
-        } else {
-            n = n-1;
-        }
-    }
-    return docs;
-}
-
 int main(int argc, char *argv[]) {
+
+    // interative interface and get inputs
     int opt;
     string input = "";
     string query = "";
@@ -148,17 +78,21 @@ int main(int argc, char *argv[]) {
                 << "Number: " << number << "\n"
                 << "Time limit: " << time_limit << "\n";
 
+        // store dataset into hashtable
         ifstream inFile(input);
         string token;
         int id;
-        int count = -1;
-        vector<int> lens;
-        vector<int> ids;
+        int count = -1;  
+        vector<int> lens;  // the length of each doc
+        vector<int> ids;  // the id of each doc
+        // {doc:{token:counts}}
         HashTable<int, HashTable<string, int>*> *doc_to_token_counts = new HashTable<int, HashTable<string, int>*>();
-        HashTable<string, HashTable<int, int>*> *token_to_doc_counts = new HashTable<string, HashTable<int, int>*>();
+        // {token:{doc:counts}}
+        HashTable<string, HashTable<int, int>*> *token_to_doc_counts = new HashTable<string, HashTable<int, int>*>(11000);
         while (!inFile.eof()){
             inFile >> token;
             if (token == ".I"){
+                // id
                 inFile >> id;
                 HashTable<string, int>* token_counts = new HashTable<string, int>();
                 doc_to_token_counts->insert(id, token_counts);
@@ -168,6 +102,8 @@ int main(int argc, char *argv[]) {
             } else if (token[0] == '.'){
                 continue;
             } else {
+                // token
+                // add to doc_to_token_counts
                 HashTable<string, int>* p_token_counts = *(doc_to_token_counts->get(id));
                 int *p_counts = p_token_counts->get(token);
                 if ( p_counts == NULL){
@@ -176,6 +112,7 @@ int main(int argc, char *argv[]) {
                     *p_counts = *p_counts + 1;
                 }
 
+                // add to token_to_doc_counts
                 HashTable<int, int>** pp_doc_counts = token_to_doc_counts->get(token);
                 if (pp_doc_counts == NULL){
                     HashTable<int, int>* doc_counts = new HashTable<int, int>();
@@ -192,12 +129,11 @@ int main(int argc, char *argv[]) {
                 lens[count] = lens[count]+1;
             }
         }
+        inFile.close();
+        cout << "finish reading in dataset, " << doc_to_token_counts->numElements << " in total" << endl;
 
-        // cout << "doc num: " << ids.size() << " id: " << ids[0] << endl;
-        // cout << "len num: " << lens.size() << " len: " << lens[0] << endl;
-        // cout << "first doc has fetal: " << *((*(doc_to_token_counts->get(1)))->get("fetal")) <<endl;
-        // cout << "fetal has in doc freq: " << *((*(token_to_doc_counts->get("fetal")))->get(1)) <<endl;
 
+        // store query in {token:counts}
         HashTable<string, int>* query_terms = new HashTable<string, int>(50);
         vector<string> tokens;
         istringstream iss(query);
@@ -211,15 +147,19 @@ int main(int argc, char *argv[]) {
             }
             tokens.push_back(token);
         }
-        cout << "query count: " << query_terms->numElements << endl;
+        cout << "finish reading in query"  << endl;
+
 
         cout << "start searching..." << endl;
-        // HashTable<int, float>* doc_score = new HashTable<int, float>();
+        // store relevance score for corresponding doc
         vector<int> scores_vec(ids.size(), 0); 
+        // used to build heap for sorting
         KVPair<float, int> **scores = new KVPair<float, int> *[ids.size()]();
         for (int i = 0; i<ids.size(); i++){
-            scores[i] = new KVPair<float, int>(0, i); //index
+            scores[i] = new KVPair<float, int>(0, i); // value is index
         }
+
+        // avgdl average doc length
         int sum_lens = 0;
         for (int i=0; i<lens.size();i++){
             sum_lens = sum_lens + lens[i];
@@ -228,8 +168,11 @@ int main(int argc, char *argv[]) {
         int k = 2;
         int b = 0.75;
 
+        // use BM25 similarity as relevance score, see https://en.wikipedia.org/wiki/Okapi_BM25 for reference
         for (int i=0; i<tokens.size();i++){
+            // nq # number of documents containing query token
             int nq = (*(token_to_doc_counts->get(tokens[i])))->numElements;
+            // # idf for query token
             float idfq = log(((lens.size()-nq+0.5)/(nq+0.5))+1);
             for (int j=0; j<ids.size(); j++){
                 int* tf = (*(token_to_doc_counts->get(tokens[i])))->get(ids[j]);
@@ -239,19 +182,13 @@ int main(int argc, char *argv[]) {
                         temp = 0;
                     }
                     scores[j]->key = scores[j]->key + temp;
-                    // float* p_score = doc_score->get(ids[j]);
-                    // if (p_score == NULL){
-                    //     doc_score->insert(ids[j], temp);
-                    // } else {
-                    //     *p_score = *p_score + temp;
-                    // }
-
                     scores_vec[j] = scores_vec[j] + temp;
-
                 }
             }
         }
 
+
+        // Heapsort for top k (number) results
         Heap<float, int> *score_heap =  new Heap<float, int>(scores, ids.size());
         vector<int> top_k;
         cout << "Searching result: " << endl;
@@ -260,35 +197,39 @@ int main(int argc, char *argv[]) {
             cout << i+1 << ". " << ids[top_k[i]] << endl;
         }
 
-        // schedule
+
+        // Schedule
         if (time_limit > 0){
+            // create time and value vector for top k results
             vector<int> times;
             vector<float> values;
             for (int i=0; i<top_k.size();i++){
                 times.push_back(std::ceil(lens[top_k[i]]/3));
                 values.push_back(scores_vec[top_k[i]]);
             }
+
+            // initialize kc
             vector<vector<float>> kc(number+1, vector<float>(time_limit+1));
             for (int j=0; j<= time_limit; j++){
                 kc[0][j] = 0; 
             }
 
+            // dp
             int sum = bottom_up(time_limit, number, kc, times, values);
-            cout << "maximum value you can read within time limit: "<< time_limit << "s is: " << sum << endl;
             vector<int> results = extract(time_limit, number, kc, times, values);
             cout << "reading list:";
             for (int i=0; i<results.size(); i++){
                 cout << " " << ids[top_k[results[i]]];
             }
             cout << endl;
+            cout << "(sum of relevance score: " << sum << ")" << endl;
         }
 
 
-
-        
-
         delete doc_to_token_counts;
         delete token_to_doc_counts;
+        delete query_terms;
+        delete score_heap;
 
         std::exit(EXIT_SUCCESS);
         
