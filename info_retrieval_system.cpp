@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <string>
 #include "hash_table.hpp"
@@ -57,13 +58,11 @@ int main(int argc, char *argv[]) {
     int opt;
     string input = "";
     string query = "";
-    string field = "content";
     int number = 0;
     int time_limit = 0;
-    int clusters = 0;
     string argstr;
 
-    while ((opt = getopt(argc, argv, "hi:q:n:t:f:c:")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:q:n:t:")) != -1) {
         switch (opt) {
             case 'h':
                 cout<<"usage: python info_retrieval_system.py [-h] -i INPUT -q QUERY -n NUMBER [-t TIME_LIMIT] [-f FIELD] [-c CLUSTERS]\n"
@@ -73,16 +72,14 @@ int main(int argc, char *argv[]) {
                     <<"\t -q QUERY \t\t of type string.the query to retrieve documents from the dataset.\n"
                     <<"\t -n NUMBER \t\t of type int.the max number of results to be returned.\n"
                     <<"\t -t TIME_LIMIT \t\t of type int. If given, the scheduler will be used to return the most relevant results which can be read within the time limit in minutes (200 words/min).\n"
-                    <<"\t -f FIELD \t\t of type int.If given, the query will be run on a specific field. [title, content, author] (default: content)\n"
-                    <<"\t -c CLUSTERS \t\t of type int. If given, the dataset will be grouped into the corresponding number of clusters."
                     << endl;
-                exit(EXIT_SUCCESS);
+                std::exit(EXIT_SUCCESS);
                 break;
             case 'i':
                 input = optarg;
                 if (input.empty()){
                     fprintf(stderr, "Error: Empty input. Use 'python info_retrieval_system.py -h' to see help.");
-                    exit(EXIT_FAILURE);
+                    std::exit(EXIT_FAILURE);
                 }
                 // cout << "Reading from: " << input << endl;
                 continue;
@@ -90,7 +87,7 @@ int main(int argc, char *argv[]) {
                 query = optarg;
                 if (query.empty()){
                     fprintf(stderr, "Error: Empty query. Use 'python info_retrieval_system.py -h' to see help.");
-                    exit(EXIT_FAILURE);
+                    std::exit(EXIT_FAILURE);
                 }
                 // cout << "Query is: " << query << endl;
                 continue;
@@ -99,7 +96,7 @@ int main(int argc, char *argv[]) {
                 number = stoi(argstr);
                 if (number == 0){
                     fprintf(stderr, "Error: Number of results need to be larger than 0. Use 'python info_retrieval_system.py -h' to see help.");
-                    exit(EXIT_FAILURE);
+                    std::exit(EXIT_FAILURE);
                 }
                 // cout << "Number is: " << number << endl;
                 continue;
@@ -107,33 +104,71 @@ int main(int argc, char *argv[]) {
                 argstr = optarg;
                 time_limit = stoi(argstr);
                 continue;
-            case 'f':
-                field = optarg;
-                if (field != "content" && field != "title" && field != "author"){
-                    fprintf(stderr, "Error: Wrong field. Use 'python info_retrieval_system.py -h' to see help.");
-                    exit(EXIT_FAILURE);
-                }
-                continue;
-            case 'c':
-                argstr = optarg;
-                clusters = stoi(argstr);
-                continue;
             default: /* '?' */
                 fprintf(stderr, "Error: Unknown input. Use 'python info_retrieval_system.py -h' to see help.");
-                exit(EXIT_FAILURE);
+                std::exit(EXIT_FAILURE);
             }
         }
         if (input.empty() || query.empty() || number == 0){
             fprintf(stderr, "Error: Missing parameters. Use 'python info_retrieval_system.py -h' to see help.");
-            exit(EXIT_FAILURE);
+            std::exit(EXIT_FAILURE);
         }
         cout << "Input has been read successfully.\n"
                 << "Input: " << input << "\n"
                 << "Query: " << query << "\n"
                 << "Number: " << number << "\n"
-                << "Time limit: " << time_limit << "\n"
-                << "Field: " << field << "\n"
-                << "Clusters: " << clusters << endl;
-        exit(EXIT_SUCCESS);
+                << "Time limit: " << time_limit << "\n";
+
+        ifstream inFile(input);
+        string token;
+        int id;
+        int count = -1;
+        vector<int> lens;
+        vector<int> ids;
+        HashTable<int, HashTable<string, int>*> *doc_to_token_counts = new HashTable<int, HashTable<string, int>*>();
+        HashTable<string, HashTable<int, int>*> *token_to_doc_counts = new HashTable<string, HashTable<int, int>*>();
+        while (!inFile.eof()){
+            inFile >> token;
+            if (token == ".I"){
+                inFile >> id;
+                HashTable<string, int>* token_counts = new HashTable<string, int>();
+                doc_to_token_counts->insert(id, token_counts);
+                lens.push_back(0);
+                ids.push_back(id);
+                count ++;
+            } else if (token[0] == '.'){
+                continue;
+            } else {
+                HashTable<string, int>* p_token_counts = *(doc_to_token_counts->get(id));
+                int *p_counts = p_token_counts->get(token);
+                if ( p_counts == NULL){
+                    p_token_counts->insert(token, 1);
+                } else {
+                    *p_counts = *p_counts + 1;
+                }
+
+                HashTable<int, int>** pp_doc_counts = token_to_doc_counts->get(token);
+                if (pp_doc_counts == NULL){
+                    HashTable<int, int>* doc_counts = new HashTable<int, int>();
+                    token_to_doc_counts->insert(token, doc_counts);
+                    doc_counts->insert(id, 1);
+                } else {
+                    int *p_counts_doc = (*pp_doc_counts)->get(id);
+                    if (p_counts_doc == NULL){
+                        (*pp_doc_counts)->insert(id, 1);
+                    } else{
+                        *p_counts_doc = *p_counts_doc + 1;
+                    }
+                }
+                lens[count] = lens[count]+1;
+            }
+        }
+
+        cout << "doc num: " << ids.size() << " id: " << ids[0] << endl;
+        cout << "len num: " << lens.size() << " len: " << lens[0] << endl;
+        cout << "first doc has fetal: " << *((*(doc_to_token_counts->get(1)))->get("fetal")) <<endl;
+        cout << "fetal has in doc freq: " << *((*(token_to_doc_counts->get("fetal")))->get(1)) <<endl;
+
+        std::exit(EXIT_SUCCESS);
         
 }

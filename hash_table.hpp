@@ -47,7 +47,7 @@ public:
      * @param key   the key against which to compute the hash, must not be null
      * @return unsigned long hash value
      */
-    int hashFunction(K &key);
+    int hashFunction(K key);
 
     /**
      * Insert the key and value into the hash table based on the key.
@@ -55,7 +55,7 @@ public:
      * @param key   the key against which to put into the table
      * @param value
      */
-    void insert(K &key, V &value);
+    void insert(K key, V value);
 
     /**
      * Delete the key and value from the hash table based on the key.
@@ -63,7 +63,7 @@ public:
      * @param key   the key against which to delete from the table
      * @param value
      */
-    void delect(K &key);
+    // void delect(K &key);
 
     /**
      * get the value from the hash table based on the key.
@@ -71,7 +71,7 @@ public:
      * @param key   the key of the value to searched for.
      * @return value
      */
-    V* get(K &key);
+    V* get(K key);
     ~HashTable();
 
     // std::vector<KVPair> getItems();
